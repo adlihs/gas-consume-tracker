@@ -1,0 +1,2 @@
+import {DAY,type Vehicle} from './engine';
+export function demoVehicle(now=Date.now()):Vehicle{return {id:'demo',name:'Mi auto · Demostración',brand:'',model:'',year:null,capacity:50,initialEfficiency:12,initialDaily:40,currency:'MXN',units:'metric',revision:0,fills:Array.from({length:6},(_,i)=>({id:`demo-${i}`,date:new Date(now-(5-i)*9*DAY).toISOString(),liters:30,amount:720+i*3,currency:'MXN',distance:i?360:null,distanceFrom:i?`demo-${i-1}`:null,odometer:12000+i*360,full:i<5,remaining:null,route:'mixto'}))};}
