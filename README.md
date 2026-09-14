@@ -148,3 +148,7 @@ Solo con al menos 8 errores temporales se muestra una banda empírica: predicci�
 Los rendimientos inferiores a 3 o superiores a 35 km/L se marcan para revisión y **se conservan**, incluso en la base. También se advierte de consumos mayores que la capacidad, nivel restante incompatible, discrepancias entre odómetro y distancia, referencias faltantes y usos superiores a 500 km/día. Ningún dato se borra silenciosamente.
 
 Los llenados incompletos marcados como completos, errores de odómetro, estimaciones del nivel de tanque, tráfico, carga transportada y cambios de rutina pueden sesgar resultados. No hay telemetría, pronóstico meteorológico ni garantía de combustible restante. Futuras mejoras: confirmación explícita de atípicos, validación independiente adicional y calibración conjunta de consumo y uso diario.
+
+## Versión alternativa en Streamlit
+
+La implementación Python independiente está en [streamlit_app](./streamlit_app/README.md), con SQLite, cálculos verificables, regresión ridge y pruebas. Para ejecutarla: instala sus dependencias y ejecuta `python run_local.py` desde esa carpeta.

@@ -1,0 +1,11 @@
+services:
+  ruta:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8501:8501"
+    volumes:
+      - ruta-data:/data
+      - ./.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro
+volumes:
+  ruta-data:
