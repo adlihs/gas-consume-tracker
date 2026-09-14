@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gas-consume-tracker",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {"enabled": true},
+  "d1_databases": [{"binding": "DB", "database_name": "gas-consume-tracker", "database_id": "00000000-0000-4000-8000-000000000000", "migrations_dir": "drizzle"}],
+  "vars": {"APP_ORIGIN": "http://localhost:5173", "ALLOW_HTTP_LOCALHOST": "true"}
+}

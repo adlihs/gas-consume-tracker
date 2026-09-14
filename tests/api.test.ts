@@ -4,6 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {createGarageAPI} from '../lib/garage-api.ts';
+import {AuthError} from '../lib/auth.ts';
 import type {Vehicle} from '../lib/engine.ts';
 const dir=mkdtempSync(join(process.cwd(),'.db-test-'));const file=join(dir,'test.sqlite');
 let db=new DatabaseSync(file);db.exec(readFileSync(new URL('../drizzle/0000_youthful_scrambler.sql',import.meta.url),'utf8'));
@@ -14,9 +15,9 @@ const api=createGarageAPI(()=>({
    run:async()=>({meta:{changes:Number(db.prepare(sql).run(...values as (string|number|null)[]).changes)}})
   })
  })
-}));
+}),async(req)=>{const id=req.headers.get('test-owner');if(!id)throw new AuthError(401,'unauthorized','Inicia sesión.');return id;},()=>({APP_ORIGIN:'https://ruta.test'}));
 const car:Vehicle={id:'car-a',name:'Persistencia',brand:'',model:'',year:null,capacity:50,initialEfficiency:12,initialDaily:40,currency:'MXN',units:'metric',fills:[],revision:0};
-const req=(method='GET',body?:unknown,user='ed')=>new Request('https://ruta.test/api/garage',{method,headers:{'oai-authenticated-user-id':user,'Content-Type':'application/json','Origin':'https://ruta.test'},...(body?{body:JSON.stringify(body)}:{})});
+const req=(method='GET',body?:unknown,user='ed')=>new Request('https://ruta.test/api/garage',{method,headers:{'test-owner':user,'Content-Type':'application/json','Origin':'https://ruta.test'},...(body?{body:JSON.stringify(body)}:{})});
 test('API + SQLite: persiste entre conexiones, edita, elimina cargas y bloquea conflictos/otros propietarios',async()=>{
  assert.equal((await api.PUT(req('PUT',car))).status,200);
  db.close();db=new DatabaseSync(file);
@@ -32,6 +33,6 @@ test('API + SQLite: persiste entre conexiones, edita, elimina cargas y bloquea c
 test('API rechaza datos inválidos, ausencia de identidad y origen ajeno',async()=>{
  assert.equal((await api.PUT(req('PUT',{...car,name:''}))).status,400);
  assert.equal((await api.GET(req('GET',undefined,''))).status,401);
- assert.equal((await api.PUT(new Request('https://ruta.test/api/garage',{method:'PUT',headers:{'oai-authenticated-user-id':'ed',Origin:'https://other.test'},body:JSON.stringify(car)}))).status,403);
+ assert.equal((await api.PUT(new Request('https://ruta.test/api/garage',{method:'PUT',headers:{'test-owner':'ed',Origin:'https://other.test'},body:JSON.stringify(car)}))).status,403);
 });
 test.after(()=>{db.close();rmSync(dir,{recursive:true});});

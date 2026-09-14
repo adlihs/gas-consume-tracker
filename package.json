@@ -1,18 +1,23 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "gas-consume-tracker",
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24"
   },
   "scripts": {
     "install:ci": "bash scripts/install-pnpm.sh",
-    "dev": "node scripts/run-framework.mjs dev",
-    "build": "node scripts/run-framework.mjs build",
+    "dev": "node --import ./scripts/sites-env.mjs ./node_modules/vinext/dist/cli.js dev --port 5173",
+    "build": "node --import ./scripts/sites-env.mjs ./node_modules/vinext/dist/cli.js build",
     "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "cf:setup": "node scripts/cloudflare-setup.mjs",
+    "cf:deploy": "node scripts/cloudflare-deploy.mjs",
+    "cf:migrate:local": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 migrations apply DB --local --config wrangler.jsonc --persist-to .wrangler/state",
+    "typecheck": "tsc --noEmit",
+    "test:worker": "node --import ./scripts/sites-env.mjs --test tests/worker.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

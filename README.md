@@ -1,65 +1,80 @@
-# Ruta · Control de gasolina
+# Ruta · Gas consume tracker
 
-MVP responsive en español para registrar vehículos, cargas y estimaciones. No requiere claves de IA ni servicios de predicción. Los registros reales empiezan vacíos; el botón **Explorar demostración** abre datos ficticios aislados, sin escribirlos en la base de datos.
+Aplicación responsive en español con vehículos, cargas de gasolina, estimaciones verificables y sesiones privadas por usuario. Esta versión está preparada para **Cloudflare Workers + D1**, con inicio de sesión mediante Google independiente de ChatGPT.
 
-## Arquitectura
+## Estado de esta entrega
 
-- **Frontend:** React 19, TypeScript, Vinext/Vite, componentes accesibles Radix/Shadcn y CSS responsive. Una superficie con Inicio, Historial, Estadísticas, Ajustes y formularios de vehículo/carga.
-- **Backend:** rutas HTTP ejecutadas en Cloudflare Workers. `GET /api/garage` obtiene los vehículos del usuario; `PUT /api/garage` crea o reemplaza un agregado de vehículo con validación y control de revisión.
-- **Persistencia:** SQLite en Cloudflare D1; esquema y migración Drizzle incluidos. Cada fila contiene un vehículo con su historial JSON y una revisión. El agregado permite cambiar registros y referencias atómicamente. Índice por propietario, consultas preparadas y control optimista impiden sobrescrituras silenciosas. Un `409` pide recargar ante una versión desactualizada.
-- **Predicción:** módulo TypeScript puro compartido entre frontend y backend. Promedio ponderado y regresión ridge real, sin dependencia de un servicio externo. El backend vuelve a validar y calcular; los valores derivados no se aceptan del cliente como fuente de verdad.
-- **Identidad:** el despliegue privado usa la identidad autenticada de Sites. Cada operación filtra por el identificador estable del propietario. La cabecera de identidad solo es de confianza detrás del dispatcher de Sites; no publiques este Worker directamente en otro proxy sin implementar autenticación equivalente.
+- Registro automático al entrar con Google, firma del ID token comprobada, sesiones persistidas y cierre de sesión.
+- Historial filtrado por propietario en cada lectura y escritura. Se ignoran cabeceras de identidad externas.
+- 32 pruebas de cálculos, API y OAuth; 1 prueba adicional del Worker compilado con D1 local y dos cuentas aisladas.
+- Compilación y comprobación TypeScript correctas; ambas migraciones aplicadas en D1 local.
+- **No se ha desplegado esta versión en una cuenta Cloudflare real.** Faltan la conexión de la cuenta y las credenciales OAuth. Las pruebas de OAuth usan un proveedor simulado con tokens RSA firmados. No sustituyen una prueba con cuentas Google reales.
 
-Esta elección mantiene una sola implementación de las fórmulas, reduce infraestructura y permite comprobar el motor sin navegador ni red.
+La versión privada anterior de ChatGPT Sites conserva sus propios datos. Este cambio no copia esos registros a D1 en tu cuenta ni los asocia automáticamente a cuentas de Google.
 
-## Archivos relevantes
+## Desplegar en Cloudflare
 
-| Componente | Ubicación |
-|---|---|
-| Interfaz y formularios | `app/page.tsx` |
-| Estilos responsive | `app/globals.css` |
-| Ruta backend | `app/api/garage/route.ts` |
-| Validación HTTP y persistencia | `lib/garage-api.ts`, `db/raw.ts` |
-| Motor de cálculos y regresión | `lib/engine.ts` |
-| Demostración identificada | `lib/demo.ts` |
-| Esquema | `db/schema.ts` |
-| Migración inicial | `drizzle/0000_youthful_scrambler.sql` |
-| Pruebas del motor y API/SQLite | `tests/engine.test.ts`, `tests/api.test.ts` |
+Consulta [DEPLOY-CLOUDFLARE.md](./DEPLOY-CLOUDFLARE.md) para el recorrido completo, los secretos y las instrucciones de despliegue automático desde GitHub.
 
-## Ejecutar en una computadora
-
-Requisitos: Node.js **24 LTS** (incluye SQLite para las pruebas), pnpm **11.25.0** y Git si se obtiene el código desde el repositorio. El proyecto incluye `pnpm-lock.yaml`; no cambies de gestor al instalar.
+Requisitos locales: Node.js 24 LTS, pnpm 11.25.0 y acceso a tu cuenta Cloudflare.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm run build
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_youthful_scrambler.sql
+pnpm exec wrangler login
+pnpm run cf:setup -- --origin https://gas-consume-tracker.TU-SUBDOMINIO.workers.dev
+pnpm exec wrangler secret put GOOGLE_CLIENT_ID --config wrangler.jsonc
+pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.jsonc
+pnpm run cf:deploy
+```
+
+`cf:setup` reutiliza o crea una base llamada `gas-consume-tracker` y configura el origen público. Los secretos se introducen de forma interactiva en Wrangler. No los pegues en el código ni los subas a GitHub. `cf:deploy` comprueba configuración y secretos, ejecuta pruebas, compila, aplica migraciones, publica y consulta el estado del acceso. El identificador D1 del archivo original es **solo un marcador local** y el script impide desplegarlo.
+
+## Desarrollo y pruebas
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run cf:migrate:local
+# Copia .dev.vars.example a .dev.vars y completa las credenciales OAuth locales.
 pnpm run dev
 ```
 
-Abre la dirección local que imprime el servidor (habitualmente `http://localhost:5173`). En modo portable, visita primero `/signin-with-chatgpt?return_to=/` en ese mismo origen para usar la identidad simulada de desarrollo. Esta simulación solo se habilita en loopback durante desarrollo y no se incluye en producción. No establezcas `SITES_MANAGED_LINUX_CONTAINER=1` en tu computadora. La configuración de perfil local no se incluye en el ZIP.
-
-La migración anterior se aplica **una sola vez** a cada base local nueva. La base persiste en `.wrangler/state`. No borres esa carpeta si quieres conservar datos locales. Para arrancar el Worker compilado con Wrangler usa `pnpm start`; ese comando no simula identidad. Para la interfaz con identidad local usa `pnpm run dev`.
-
-El despliegue en Sites provisiona D1 y aplica las migraciones antes de publicar. `.openai/hosting.json` declara `DB`; no contiene credenciales. Para cambios posteriores al esquema:
-
-```sh
-pnpm run db:generate
-```
-
-Revisa y aplica únicamente las nuevas migraciones. No modifiques migraciones ya aplicadas.
-
-## Pruebas
+Para desarrollo, `wrangler.jsonc` debe tener `APP_ORIGIN: http://localhost:5173` y `ALLOW_HTTP_LOCALHOST: true`. El cliente Google debe permitir `http://localhost:5173/api/auth/callback`. No hay un usuario simulado ni una vía de acceso sin autenticación en la aplicación; sin credenciales puedes explorar la demostración.
 
 ```sh
 pnpm test
-pnpm exec tsc --noEmit
+pnpm run typecheck
 pnpm run build
+pnpm run test:worker
 ```
 
-24 pruebas automatizadas cubren: aceptación, primer registro, ausencia de supuestos, parciales, suma de litros sin duplicar, odómetro, distancia faltante, edición, eliminación, cambios de fecha, autonomía total, rutina sin mutar historial, divisiones por cero, validación, independencia del precio, activación/rechazo de ML y predicción de prefijos. Las pruebas de API ejecutan las consultas reales sobre SQLite en un archivo temporal, lo cierran y reabren para verificar persistencia, y prueban propiedad, revisiones, ediciones y errores HTTP.
+`pnpm test` ejecuta 32 pruebas. `test:worker` ejecuta el artefacto compilado con Miniflare/workerd y D1 aislada, con sesiones de prueba sembradas únicamente dentro de esa prueba. Ninguno de estos tests añade cuentas o rutas de acceso de prueba a producción. La base de desarrollo persiste en `.wrangler/state` y nunca se sube a GitHub.
 
-No se ejecutó una prueba visual ni end-to-end en navegador. La integración WebMCP opcional expone una consulta de solo lectura cuando el navegador la admite; no se pudo verificar en un contexto WebMCP compatible. No es necesaria para usar la aplicación.
+## Arquitectura
+
+| Componente | Implementación |
+|---|---|
+| Interfaz responsive | React, TypeScript, Vinext/Vite, Radix/Shadcn |
+| Entrada Cloudflare | `worker/index.ts`, `wrangler.jsonc` |
+| API de vehículos | `app/api/garage/route.ts`, `lib/garage-api.ts` |
+| OAuth y sesiones | `app/api/auth/[action]/route.ts`, `lib/auth.ts` |
+| Motor predictivo | `lib/engine.ts` |
+| Base de datos | D1/SQLite, esquema Drizzle en `db/schema.ts` |
+| Migraciones | `drizzle/0000_*.sql` y `drizzle/0001_*.sql` |
+| Despliegue | `scripts/cloudflare-setup.mjs`, `scripts/cloudflare-deploy.mjs` |
+
+Cada vehículo y su historial se guardan como un agregado JSON con revisión. Una modificación es atómica y un conflicto de revisión devuelve HTTP 409. Las consultas usan parámetros y siempre restringen por propietario. No se acepta un identificador de propietario desde el navegador.
+
+## Autenticación
+
+Google OAuth Authorization Code con PKCE S256, `state` vinculado al navegador, `nonce`, caducidad y consumo único del intento. El backend valida firma RSA, emisor, audiencia, vencimiento, nonce y correo verificado del ID token. La identidad estable se toma de Google `sub`, no del correo; no se enlazan cuentas por coincidencia de email.
+
+Las sesiones usan tokens aleatorios de 256 bits. D1 almacena sus hashes SHA-256, no los tokens; la cookie de producción es `__Host-ruta_session`, `Secure`, `HttpOnly`, `SameSite=Lax` y caduca en 7 días. Cerrar sesión revoca el token. Las escrituras exigen el origen configurado. El inicio de OAuth limita intentos por dirección de Cloudflare y ventana temporal. No se guardan contraseñas ni access/refresh tokens de Google. Las tablas guardan nombre, correo y el identificador Google mínimo para la cuenta.
+
+La implementación usa Web Crypto del runtime y los endpoints oficiales; no depende de una clave de IA. Referencia del protocolo: [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect).
+
+## Migraciones y datos existentes
+
+`cf:deploy` aplica únicamente migraciones pendientes con Wrangler. No reescribas migraciones ya aplicadas; genera nuevas con `pnpm run db:generate`. Las cuentas y sesiones se agregan en la segunda migración sin cambiar registros de vehículos existentes. Si migras una base con propietarios de ChatGPT, habrá que hacer una asociación explícita y verificada; esos registros no se exponen a cuentas nuevas.
 
 ## Tipo de carga
 
