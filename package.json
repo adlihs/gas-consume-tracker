@@ -15,6 +15,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "cf:setup": "node scripts/cloudflare-setup.mjs",
     "cf:deploy": "node scripts/cloudflare-deploy.mjs",
+    "cf:ci-deploy": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 migrations apply DB --remote --config wrangler.jsonc && node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js deploy --config dist/server/wrangler.json",
     "cf:migrate:local": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 migrations apply DB --local --config wrangler.jsonc --persist-to .wrangler/state",
     "typecheck": "tsc --noEmit",
     "test:worker": "node --import ./scripts/sites-env.mjs --test tests/worker.test.mjs"

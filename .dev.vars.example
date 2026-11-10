@@ -1,3 +1,6 @@
 # Copy to .dev.vars, which is ignored by Git. Use an OAuth web client for localhost.
+# These values override the production vars in wrangler.jsonc only during local development.
+APP_ORIGIN="http://localhost:5173"
+ALLOW_HTTP_LOCALHOST="true"
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""

@@ -8,5 +8,5 @@
   "preview_urls": false,
   "observability": {"enabled": true},
   "d1_databases": [{"binding": "DB", "database_name": "gas-consume-tracker", "database_id": "61b43503-d5ca-4a60-a51c-8cf5d8f7defa", "migrations_dir": "drizzle"}],
-  "vars": {"APP_ORIGIN": "http://localhost:5173", "ALLOW_HTTP_LOCALHOST": "true"}
+  "vars": {"APP_ORIGIN": "https://gas-consume-tracker.edmondneil.workers.dev"}
 }

@@ -104,3 +104,13 @@ Referencia: [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/bui
 - **Límite de intentos:** espera la siguiente ventana de 10 minutos. El límite evita generar indefinidamente intentos OAuth.
 
 El plan gratuito puede servir para comenzar, pero sus cuotas de CPU, solicitudes y D1 deben comprobarse con el uso real. Consulta [Workers](https://developers.cloudflare.com/workers/platform/pricing/) y [D1](https://developers.cloudflare.com/d1/platform/pricing/). Esta preparación no contrata un plan de pago.
+
+## Despliegue automático desde GitHub (Workers Builds)
+
+El Worker `gas-consume-tracker` está conectado al repositorio `adlihs/gas-consume-tracker`. Cada push a `main` compila y publica automáticamente:
+
+- Variable de compilación: `NODE_VERSION=24`.
+- Comando de compilación: `pnpm run build`.
+- Comando de despliegue: `pnpm run cf:ci-deploy` (aplica migraciones D1 pendientes y publica `dist/server/wrangler.json`).
+
+`wrangler.jsonc` contiene la configuración de producción. Los valores de desarrollo local van en `.dev.vars`. Los secretos de Google se conservan en el Worker y no se tocan en el despliegue. El estado y los registros de cada compilación aparecen en Cloudflare → Workers & Pages → gas-consume-tracker → Deployments.

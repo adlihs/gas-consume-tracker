@@ -38,7 +38,7 @@ pnpm run cf:migrate:local
 pnpm run dev
 ```
 
-Para desarrollo, `wrangler.jsonc` debe tener `APP_ORIGIN: http://localhost:5173` y `ALLOW_HTTP_LOCALHOST: true`. El cliente Google debe permitir `http://localhost:5173/api/auth/callback`. No hay un usuario simulado ni una vía de acceso sin autenticación en la aplicación; sin credenciales puedes explorar la demostración.
+`wrangler.jsonc` guarda la configuración de producción (`APP_ORIGIN` con la dirección pública y sin `ALLOW_HTTP_LOCALHOST`). Para desarrollo, `.dev.vars` (copiado de `.dev.vars.example`) sobrescribe localmente `APP_ORIGIN: http://localhost:5173` y `ALLOW_HTTP_LOCALHOST: true`. El cliente Google debe permitir `http://localhost:5173/api/auth/callback`. No hay un usuario simulado ni una vía de acceso sin autenticación en la aplicación; sin credenciales puedes explorar la demostración.
 
 ```sh
 pnpm test
