@@ -6,7 +6,7 @@ Aplicación responsive en español con vehículos, cargas de gasolina, estimacio
 
 - Registro automático al entrar con Google, firma del ID token comprobada, sesiones persistidas y cierre de sesión.
 - Historial filtrado por propietario en cada lectura y escritura. Se ignoran cabeceras de identidad externas.
-- 32 pruebas de cálculos, API y OAuth; 1 prueba adicional del Worker compilado con D1 local y dos cuentas aisladas.
+- 45 pruebas de cálculos, API y OAuth; 1 prueba adicional del Worker compilado con D1 local y dos cuentas aisladas.
 - Compilación y comprobación TypeScript correctas; ambas migraciones aplicadas en D1 local.
 - **No se ha desplegado esta versión en una cuenta Cloudflare real.** Faltan la conexión de la cuenta y las credenciales OAuth. Las pruebas de OAuth usan un proveedor simulado con tokens RSA firmados. No sustituyen una prueba con cuentas Google reales.
 
@@ -47,7 +47,7 @@ pnpm run build
 pnpm run test:worker
 ```
 
-`pnpm test` ejecuta 32 pruebas. `test:worker` ejecuta el artefacto compilado con Miniflare/workerd y D1 aislada, con sesiones de prueba sembradas únicamente dentro de esa prueba. Ninguno de estos tests añade cuentas o rutas de acceso de prueba a producción. La base de desarrollo persiste en `.wrangler/state` y nunca se sube a GitHub.
+`pnpm test` ejecuta 45 pruebas. `test:worker` ejecuta el artefacto compilado con Miniflare/workerd y D1 aislada, con sesiones de prueba sembradas únicamente dentro de esa prueba. Ninguno de estos tests añade cuentas o rutas de acceso de prueba a producción. La base de desarrollo persiste en `.wrangler/state` y nunca se sube a GitHub.
 
 ## Arquitectura
 
@@ -78,7 +78,7 @@ La implementación usa Web Crypto del runtime y los endpoints oficiales; no depe
 
 ## Tipo de carga
 
-Al registrar gasolina se debe elegir explícitamente **Tanque lleno** o **Tanque parcial**; no se preselecciona ninguna opción nueva. Al editar, se conserva la elección guardada. El valor `full` determina los límites de los intervalos que alimentan el promedio y la regresión. Una carga parcial aporta sus litros al intervalo abierto y permite estimar el alcance añadido, pero por sí sola no crea una observación de consumo. Cambiar esta opción recalcula intervalos, entrenamiento y estimaciones.
+Al registrar gasolina se debe elegir explícitamente **Tanque lleno** o **Tanque parcial**; no se preselecciona ninguna opción nueva. Al editar, se conserva la elección guardada. El valor `full`, junto con el nivel restante y la capacidad del tanque, determina las observaciones de consumo que alimentan el promedio y la regresión. **No se requieren tanques llenos para predecir:** las cargas parciales también generan observaciones (ver *Observaciones con cargas parciales*). Cambiar esta opción recalcula observaciones, entrenamiento y estimaciones.
 
 ## Consumo fiable
 
@@ -93,6 +93,22 @@ Ordenamos las cargas por fecha. Entre dos llenados completos consecutivos:
 Un intervalo con distancia desconocida o no positiva no produce una observación de consumo. Los registros permanecen guardados. La distancia manual almacena `distanceFrom`: al borrar, insertar o reordenar cargas, una distancia no se reasigna a otra referencia en silencio. La interfaz pide revisar/reingresar la distancia afectada. Si hay odómetros de los extremos, se puede recuperar la distancia total aun con parciales sin distancia.
 
 Ejemplo: lleno inicial de 50 L; parcial de 10 L tras 100 km; lleno de 20 L tras 260 km. Consumo observado = (100 + 260) / (10 + 20) = **12 km/L**. Los 50 L iniciales no entran en el denominador.
+
+## Observaciones con cargas parciales
+
+Además de los intervalos entre tanques llenos, el motor (`observations()` en `lib/engine.ts`) crea observaciones estimadas con cargas parciales. Cada observación tiene un tipo y un peso:
+
+| Tipo | Cuándo se crea | Peso |
+|---|---|---|
+| `lleno` | Entre dos tanques llenos (método anterior, sin cambios). | 1 |
+| `nivel` | Al menos un extremo es una carga parcial con **nivel restante antes de cargar** y el vehículo tiene **capacidad** declarada. | 0.6 |
+| `acumulado` | Tramo de cargas parciales sin nivel conocido. | 0.4 |
+
+**Por nivel.** Cada carga con nivel conocido es una referencia: un lleno deja el tanque en la capacidad y tenía `capacidad − litros` antes; una parcial tenía `capacidad × restante %` y queda con eso más los litros. Consumo = nivel después de la referencia + litros intermedios − nivel antes de la siguiente referencia. Entre dos llenos la capacidad se cancela y el resultado es idéntico al método anterior. Si el consumo es menor que 15 % de la capacidad, el error del indicador dominaría: se conserva la referencia anterior y se espera más recorrido. Un consumo cero o negativo (niveles incompatibles) genera una advertencia y no se usa.
+
+**Acumulado.** En las cargas no cubiertas por los métodos anteriores, se suman distancias y litros (excluyendo la carga inicial del tramo) hasta reunir al menos **2 tanques** de litros (80 L si no hay capacidad) y 3 cargas. Los litros comprados se aproximan a los consumidos; el sesgo está acotado por la diferencia de nivel del tanque entre los extremos, que se diluye en tramos largos. Una distancia faltante corta el tramo. Ningún litro se cuenta en dos observaciones.
+
+Los pesos multiplican el peso de recencia en el promedio ponderado (`peso = posición × peso del tipo`) y se usan como pesos de muestra en la regresión ridge (`X'WX`). La validación walk-forward y los criterios de activación de ML no cambian; con 20 o más observaciones de cualquier tipo, la regresión puede activarse con un historial solo de cargas parciales. La interfaz indica cuántas observaciones son exactas y cuántas estimadas, y la auditoría muestra el tipo y peso de cada una. Registrar el nivel restante en las cargas parciales es la forma más precisa de mejorar las estimaciones sin llenar el tanque.
 
 ## Estimaciones
 
@@ -112,7 +128,7 @@ Se almacenan km y litros. Ajustes puede mostrar millas y galones estadounidenses
 
 ### Inicio y método base
 
-Sin intervalos válidos, se usa el rendimiento inicial proporcionado. Si falta, no hay alcance ni costo por km. Con observaciones válidas, se usa la media móvil ponderada de los últimos **6** rendimientos, con pesos 1…n del más antiguo al reciente. Menos de 3 intervalos se identifica como estimación inicial.
+Sin observaciones válidas, se usa el rendimiento inicial proporcionado. Si falta, no hay alcance ni costo por km. Con observaciones válidas, se usa la media móvil ponderada de los últimos **6** rendimientos, con pesos 1…n del más antiguo al reciente. Menos de 3 intervalos se identifica como estimación inicial.
 
 El uso diario se aprende por separado de hasta 6 segmentos con distancia conocida y tiempo positivo: suma(km × peso de recencia) / suma(días × peso de recencia). Esto evita dar el mismo peso a un segmento de pocas horas que a uno de muchos días. Los periodos sin viajes sí cuentan como tiempo si su distancia es conocida. Sin segmentos se usa el supuesto inicial; si falta o el uso observado es 0, no se calcula una fecha.
 
